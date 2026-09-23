@@ -5,7 +5,7 @@ on:
     branches: ["main"]
 
 permissions:
-  contents: write  # Necessário para conseguir commitar as alterações de volta no repositório
+  contents: write
   pages: write
   id-token: write
 
@@ -25,17 +25,17 @@ jobs:
 
       - name: Processar, converter e limpar áudios
         run: |
-          # 1. Substituir espaços por _ em todos os arquivos e pastas recursivamente (evita problemas no Linux/URL)
+          # 1. Substituir espaços por _ em arquivos e pastas recursivamente com segurança
           find . -depth -name "* *" | while IFS= read -r f; do
             dir=$(dirname "$f")
             newname=$(basename "$f" | tr ' ' '_')
             mv "$f" "$dir/$newname"
           done
 
-          # 2. Procurar por áudios que não sejam mp3, converter para mp3 e apagar o original
-          find . -type f \( -name "*.wav" -o -name "*.flac" -o -name "*.ogg" -o -name "*.m4a" -o -name "*.aac" \) | while read -r file; do
+          # 2. Procurar por áudios de forma segura (usando -print0) e converter com o FFmpeg
+          find . -type f \( -name "*.wav" -o -name "*.flac" -o -name "*.ogg" -o -name "*.m4a" -o -name "*.aac" \) -print0 | while IFS= read -r -d '' file; do
             output="${file%.*}.mp3"
-            echo "Convertendo: $file para $output"
+            echo "Convertendo: '$file' para '$output'"
             ffmpeg -i "$file" -codec:a libmp3lame -qscale:a 2 "$output" -y
             rm "$file"
           done
@@ -45,7 +45,6 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          # Só faz o commit se houver alterações reais (novos mp3 ou arquivos renomeados)
           if git diff --staged --quiet; then
             echo "Nenhuma alteração de áudio para commitar."
           else
