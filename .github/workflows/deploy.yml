@@ -1,32 +1,41 @@
-- name: Processar, converter e limpar áudios com Python
-        run: |
-          python3 -c '
-          import os
-          import subprocess
+name: Deploy Prévias Pages
 
-          for root, dirs, files in os.walk("."):
-              for file in files:
-                  if file.lower().endswith((".wav", ".flac", ".ogg", ".m4a", ".aac")):
-                      full_path = os.path.join(root, file)
-                      # Remove espaços do nome do arquivo
-                      new_file = file.replace(" ", "_")
-                      new_full_path = os.path.join(root, new_file)
-                      
-                      if full_path != new_full_path:
-                          os.rename(full_path, new_full_path)
-                          full_path = new_full_path
+on:
+  push:
+    branches: ["main"] # Ou "master" se a sua branch principal for essa
 
-                      output_path = os.path.splitext(full_path)[0] + ".mp3"
-                      
-                      if full_path == output_path:
-                          continue
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
-                      print(f"Convertendo: {full_path} para {output_path}")
-                      subprocess.run([
-                          "ffmpeg", "-i", full_path, 
-                          "-codec:a", "libmp3lame", "-qscale:a", "2", 
-                          output_path, "-y"
-                      ], check=True)
-                      
-                      os.remove(full_path)
-          '
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Executar gerador de HTML
+        run: python generator.py
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
