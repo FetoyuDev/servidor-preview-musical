@@ -2,10 +2,10 @@ name: Deploy Prévias Pages
 
 on:
   push:
-    branches: ["main"] # Ou "master" se a sua branch principal for essa
+    branches: ["main"]
 
 permissions:
-  contents: read
+  contents: write  # Necessário para conseguir commitar as alterações de volta no repositório
   pages: write
   id-token: write
 
@@ -19,6 +19,39 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Instalar FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Processar, converter e limpar áudios
+        run: |
+          # 1. Substituir espaços por _ em todos os arquivos e pastas recursivamente (evita problemas no Linux/URL)
+          find . -depth -name "* *" | while IFS= read -r f; do
+            dir=$(dirname "$f")
+            newname=$(basename "$f" | tr ' ' '_')
+            mv "$f" "$dir/$newname"
+          done
+
+          # 2. Procurar por áudios que não sejam mp3, converter para mp3 e apagar o original
+          find . -type f \( -name "*.wav" -o -name "*.flac" -o -name "*.ogg" -o -name "*.m4a" -o -name "*.aac" \) | while read -r file; do
+            output="${file%.*}.mp3"
+            echo "Convertendo: $file para $output"
+            ffmpeg -i "$file" -codec:a libmp3lame -qscale:a 2 "$output" -y
+            rm "$file"
+          done
+
+      - name: Configurar Git para Commit Automático
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          # Só faz o commit se houver alterações reais (novos mp3 ou arquivos renomeados)
+          if git diff --staged --quiet; then
+            echo "Nenhuma alteração de áudio para commitar."
+          else
+            git commit -m "chore: converte áudios para mp3, limpa originais e remove espaços"
+            git push
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
